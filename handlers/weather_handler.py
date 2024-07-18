@@ -5,7 +5,7 @@ from telegram.ext import CallbackContext
 from config import WEATHER_API_KEY, CITY_NAME
 from services.weather_service import WeatherService
 from utils.state_manager import StateManager
-from datetime import datetime
+from datetime import time, datetime
 
 weather_service = WeatherService(WEATHER_API_KEY, CITY_NAME)
 state_manager = StateManager()
@@ -26,8 +26,7 @@ async def toggle_weather(update: Update, context: CallbackContext) -> None:
     state_manager.set_state(user_id, new_state)
 
     if new_state == 'ON':
-        context.job_queue.run_repeating(send_weather_notifications, interval=60, first=0,
-                                        chat_id=update.message.chat_id)
+        context.job_queue.run_daily(send_weather_notifications, time(hour=9, minute=0), data=update.message.chat_id)
         await update.message.reply_text('Уведомления о погоде включены.')
     else:
         for job in context.job_queue.jobs():
@@ -46,7 +45,7 @@ async def back_to_main(update: Update, context: CallbackContext) -> None:
 
 
 async def send_weather_notifications(context: CallbackContext):
-    chat_id = context.job.chat_id
+    chat_id = context.job.data
     weather_data = weather_service.get_weather()
     if weather_data:
         today = datetime.now().date()
