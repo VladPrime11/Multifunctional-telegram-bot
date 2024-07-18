@@ -5,15 +5,22 @@ from telegram.ext import CallbackContext
 from config import WEATHER_API_KEY, CITY_NAME
 from services.weather_service import WeatherService
 from utils.state_manager import StateManager
+from database import Database
 from datetime import time, datetime
 
+db = Database()
 weather_service = WeatherService(WEATHER_API_KEY, CITY_NAME)
 state_manager = StateManager()
 
 
 async def weather(update: Update, context: CallbackContext) -> None:
     user_id = update.message.from_user.id
-    state = state_manager.get_state(user_id)
+    chat_id = update.message.chat_id
+    username = update.message.from_user.username
+    nickname = update.message.from_user.first_name
+    db.add_user(user_id, chat_id, username, nickname)
+    user_data = db.get_user(user_id)
+    state = 'ON' if user_data[4] else 'OFF'
     keyboard = [[f'🔔 Включить погоду: {state}', '🔙 Назад']]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text('Настройки погоды:', reply_markup=reply_markup)
@@ -24,6 +31,8 @@ async def toggle_weather(update: Update, context: CallbackContext) -> None:
     current_state = state_manager.get_state(user_id)
     new_state = 'OFF' if current_state == 'ON' else 'ON'
     state_manager.set_state(user_id, new_state)
+
+    db.update_notification(user_id, new_state == 'ON')
 
     if new_state == 'ON':
         context.job_queue.run_daily(send_weather_notifications, time(hour=9, minute=0), data=update.message.chat_id)
